@@ -54,3 +54,4 @@ def get_freight_metrics(df):
     avg_freight = df['freight_value'].mean()
     avg_freight_ratio = df['freight_ratio'].mean()
     return avg_freight, avg_freight_ratio
+

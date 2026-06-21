@@ -94,7 +94,7 @@ if selected_category != 'All':
     df = df[df['product_category'] == selected_category]
 
 st.title("Olist Operations & Product Analytics")
-st.markdown("A deep dive into operational efficiency, product ratings, and customer behavior.")
+st.markdown("A deep dive into operational efficiency, product ratings, and customer purchasing behavior.")
 
 total_rev, total_orders, total_customers, avg_order_value = get_executive_metrics(df)
 avg_seller_proc, avg_carrier_transit, late_pct, valid_logs = get_logistics_metrics(df)
@@ -286,3 +286,4 @@ with tab5:
     - **Insight**: Credit Cards dominate the payment landscape, but Boletos still make up a significant portion of transactions. Boletos generally have longer payment confirmation times which delays the seller's dispatch time.
     - **Recommendation**: Incentivize credit card or PIX/instant payments over Boleto by offering a 2-3% discount at checkout. This will accelerate the entire order lifecycle and reduce the "time to ship" bottleneck.
     """)
+
