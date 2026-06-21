@@ -11,12 +11,9 @@ from src.evaluation import generate_report
 from src.inventory import generate_inventory_plan
 
 def main():
-    print("===================================================")
-    print("   STARTING OLIST SUPPLY CHAIN PIPELINE (E2E)    ")
-    print("===================================================")
+    print("Starting Olist Supply Chain Pipeline (E2E)")
 
-    # 1. ETL (Extract, Transform, Load)
-    print("\n[STEP 1] LOADING & MERGING RAW DATA...")
+    print("\nLoading and Merging Raw Data...")
     try:
         df_master = load_and_merge_data()
         save_processed(df_master)
@@ -25,28 +22,22 @@ def main():
         print("Please ensure your CSV files are in 'data/raw/'")
         return
 
-    # 2. Feature Engineering
-    print("\n[STEP 2] FEATURE ENGINEERING (V3)...")
+    print("\nFeature Engineering (V3)...")
     df_raw = load_processed_data("master_table.parquet")
     df_feats = create_time_series_features(df_raw)
     save_features(df_feats, "features_v3.parquet")
 
-    # 3. Model Training
-    print("\n[STEP 3] MODEL TRAINING...")
+    print("\nModel Training...")
     train_model()
 
-    # 4. Evaluation & Reporting
-    print("\n[STEP 4] GENERATING REPORTS...")
+    print("\nGenerating Reports...")
     generate_report()
 
-    # 5. Inventory Planning
-    print("\n[STEP 5] GENERATING INVENTORY PLAN...")
+    print("\nGenerating Inventory Plan...")
     generate_inventory_plan(service_level=0.95)
 
-    print("\n===================================================")
-    print("   PIPELINE COMPLETE SUCCESSFULY")
-    print("   Check 'reports/' for graphs and inventory plans.")
-    print("===================================================")
+    print("\nPipeline Complete Successfully.")
+    print("Check 'reports/' for graphs and inventory plans.")
 
 if __name__ == "__main__":
     main()

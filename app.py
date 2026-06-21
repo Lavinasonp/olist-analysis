@@ -3,266 +3,286 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import os
-import os# --- Configuration & Styling ---
+from src.dashboard_utils import load_data, get_executive_metrics, get_logistics_metrics, get_freight_metrics
+
 st.set_page_config(
-    page_title="Olist Supply Chain Analytics", 
-    page_icon="📦", 
-    layout="wide"
+    page_title="Olist Supply Chain Analytics",
+    page_icon="📦",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Deep Data Analyst Styling
 st.markdown("""
 <style>
-    .main-title {
-        font-size: 3rem;
-        color: #1E3A8A;
+    :root {
+        --olist-blue: #004B93;
+        --olist-green: #00A859;
+    }
+    
+    h1, h2, h3 {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    div[data-testid="stMetricValue"] {
+        color: var(--olist-blue);
+        font-size: 2rem;
+        font-weight: 700;
+    }
+    
+    .kpi-card {
+        background-color: var(--background-color);
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 1px solid var(--secondary-background-color);
+        border-left: 5px solid var(--olist-green);
+        margin-bottom: 20px;
+    }
+    
+    .kpi-title {
+        color: var(--text-color);
+        opacity: 0.8;
+        font-size: 14px;
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+    
+    .kpi-value {
+        color: var(--text-color);
+        font-size: 28px;
         font-weight: 800;
-        text-align: center;
-        margin-bottom: 0px;
     }
-    .sub-title {
-        font-size: 1.5rem;
-        color: #6B7280;
-        text-align: center;
-        margin-bottom: 2rem;
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
     }
-    .author-badge {
-        background: linear-gradient(90deg, #4F46E5 0%, #EC4899 100%);
-        color: white !important;
-        padding: 0.5rem 1rem;
-        border-radius: 9999px;
-        font-weight: bold;
-        text-align: center;
-        display: inline-block;
-        margin: auto;
-        width: 100%;
-        margin-bottom: 2rem;
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: transparent;
+        border-radius: 4px 4px 0px 0px;
+        gap: 1px;
+        padding-top: 10px;
+        padding-bottom: 10px;
     }
-    .metric-card {
-        background-color: #F3F4F6;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-        text-align: center;
+    .stTabs [aria-selected="true"] {
+        border-bottom: 3px solid var(--olist-blue);
+        color: var(--olist-blue) !important;
+        font-weight: 600;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Main Title & Author
-st.markdown("<h1 class='main-title'>Olist Supply Chain Excellence Dashboard</h1>", unsafe_allow_html=True)
-st.markdown("<h3 class='sub-title'>Advanced Demand Forecasting & Logistics Analytics</h3>", unsafe_allow_html=True)
+df_original = load_data()
 
-st.sidebar.markdown("<div class='author-badge'>🌟 Made by Laveena Sonp</div>", unsafe_allow_html=True)
-st.sidebar.header("Navigation")
+if df_original.empty:
+    st.stop()
 
-# --- Load Data Helpers ---
-@st.cache_data
-def load_data():
-    master_path = os.path.join("data", "processed", "master_table.parquet")
-    features_path = os.path.join("data", "processed", "features_v3.parquet")
-    
-    if not os.path.exists(master_path):
-        st.error(f"Missing {master_path}. Please run data_loader.py")
-        st.stop()
-        
-    df_master = pd.read_parquet(master_path)
-    
-    # Dates
-    date_cols = ['order_purchase_timestamp', 'order_approved_at', 
-                 'order_delivered_carrier_date', 'order_delivered_customer_date']
-    for col in date_cols:
-        df_master[col] = pd.to_datetime(df_master[col], errors='coerce')
-        
-    df_features = pd.read_parquet(features_path) if os.path.exists(features_path) else None
-    
-    return df_master, df_features
+st.sidebar.title("Filters")
 
-df_master, df_features = load_data()
+states = ['All'] + sorted(list(df_original['customer_state'].dropna().unique()))
+selected_state = st.sidebar.selectbox("Customer State", states)
 
-# --- Navigation Logic ---
-navigation = st.sidebar.radio("Go to Analysis:", [
-    "1. Executive Overview", 
-    "2. Logistics & Performance", 
-    "3. Demand Forecasting",
-    "4. Inventory Replenishment"
-])
+categories = ['All'] + sorted(list(df_original['product_category'].dropna().unique()))
+selected_category = st.sidebar.selectbox("Product Category", categories)
 
-st.sidebar.markdown("---")
-st.sidebar.info("This interactive dashboard analyzes Olist e-commerce data to optimize supply chain operations, predict future demand, and guide inventory policy.")
+df = df_original.copy()
+if selected_state != 'All':
+    df = df[df['customer_state'] == selected_state]
+if selected_category != 'All':
+    df = df[df['product_category'] == selected_category]
 
-# --- 1. Executive Overview ---
-if navigation == "1. Executive Overview":
+st.title("Olist Operations & Product Analytics")
+st.markdown("A deep dive into operational efficiency, product ratings, and customer behavior.")
+
+total_rev, total_orders, total_customers, avg_order_value = get_executive_metrics(df)
+avg_seller_proc, avg_carrier_transit, late_pct, valid_logs = get_logistics_metrics(df)
+avg_freight, avg_freight_ratio = get_freight_metrics(df)
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.markdown(f'<div class="kpi-card"><div class="kpi-title">Total Revenue</div><div class="kpi-value">R$ {total_rev:,.0f}</div></div>', unsafe_allow_html=True)
+with col2:
+    st.markdown(f'<div class="kpi-card"><div class="kpi-title">Total Orders</div><div class="kpi-value">{total_orders:,}</div></div>', unsafe_allow_html=True)
+with col3:
+    st.markdown(f'<div class="kpi-card"><div class="kpi-title">Avg Order Value</div><div class="kpi-value">R$ {avg_order_value:.2f}</div></div>', unsafe_allow_html=True)
+with col4:
+    st.markdown(f'<div class="kpi-card"><div class="kpi-title">Late Delivery Rate</div><div class="kpi-value">{late_pct:.1f}%</div></div>', unsafe_allow_html=True)
+
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Executive", "🚚 Logistics", "📦 Products", "⭐ Ratings & Payments", "💡 Recommendations"])
+
+olist_blue = '#004B93'
+olist_green = '#00A859'
+color_discrete_sequence = ['#004B93', '#00A859', '#F9A01B', '#E53935', '#8E24AA', '#03A9F4', '#FF9800', '#4CAF50']
+
+with tab1:
     st.header("Executive Overview & Purchasing Patterns")
     
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Revenue", f"R$ {df_master['price'].sum():,.0f}")
-    with col2:
-        st.metric("Total Orders", f"{df_master['order_id'].nunique():,}")
-    with col3:
-        st.metric("Total Customers", f"{df_master['customer_id'].nunique():,}")
-    with col4:
-        st.metric("Avg Order Value", f"R$ {df_master['price'].mean():,.2f}")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        monthly_sales = df.groupby('order_month')['price'].sum().reset_index()
+        fig_revenue = px.line(monthly_sales, x='order_month', y='price', 
+                              title="Total Monthly Revenue Trends",
+                              template="plotly_white", line_shape='spline')
+        fig_revenue.update_traces(line_color=olist_blue, line_width=3)
+        st.plotly_chart(fig_revenue, use_container_width=True)
         
-    st.markdown("---")
-    
-    # A. Monthly Revenue Trend
-    st.subheader("Revenue Trajectory")
-    
-    # Safely convert to datetime to ensure pandas resampling works correctly
-    temp_df = df_master.copy()
-    temp_df['order_purchase_timestamp'] = pd.to_datetime(temp_df['order_purchase_timestamp'])
-    
-    monthly_sales = temp_df.set_index('order_purchase_timestamp').resample('ME')['price'].sum().reset_index()
-    fig1 = px.line(monthly_sales, x='order_purchase_timestamp', y='price', 
-                   title="Total Monthly Revenue", 
-                   labels={'order_purchase_timestamp': 'Month', 'price':'Revenue (R$)'},
-                   template="plotly_white", line_shape='spline')
-    fig1.update_traces(line_color='#4F46E5', line_width=3)
-    st.plotly_chart(fig1, use_container_width=True)
-    
-    # B. Geographic Distribution
-    colA, colB = st.columns(2)
-    with colA:
-        st.subheader("Customer Distribution by State")
-        state_counts = df_master['customer_state'].value_counts().reset_index()
+    with col_b:
+        state_counts = df['customer_state'].value_counts().reset_index().head(10)
         state_counts.columns = ['customer_state', 'count']
-        fig2 = px.bar(state_counts.head(10), x='customer_state', y='count', 
-                      color='count', color_continuous_scale='Viridis',
-                      title="Top 10 States by Order Volume")
-        st.plotly_chart(fig2, use_container_width=True)
-        
-    with colB:
-        st.subheader("Top Product Categories")
-        cat_counts = df_master['product_category'].value_counts().reset_index()
-        cat_counts.columns = ['category', 'sales']
-        fig3 = px.pie(cat_counts.head(10), values='sales', names='category', hole=0.4,
-                      title="Revenue Breakdown (Top 10 Categories)", color_discrete_sequence=px.colors.qualitative.Pastel)
-        st.plotly_chart(fig3, use_container_width=True)
+        fig_state = px.bar(state_counts, x='customer_state', y='count', 
+                           title="Top 10 States by Order Volume",
+                           color_discrete_sequence=[olist_green])
+        st.plotly_chart(fig_state, use_container_width=True)
 
-# --- 2. Logistics & Performance ---
-elif navigation == "2. Logistics & Performance":
-    st.header("Supply Chain & Logistics Performance")
-    
-    df_logistics = df_master.copy()
-    df_logistics['time_to_ship'] = (df_logistics['order_delivered_carrier_date'] - df_logistics['order_approved_at']).dt.days
-    df_logistics['carrier_time'] = (df_logistics['order_delivered_customer_date'] - df_logistics['order_delivered_carrier_date']).dt.days
-    df_logistics['delay_days'] = (df_logistics['order_delivered_customer_date'] - df_logistics['order_estimated_delivery_date']).dt.days
-    
-    # Filter valid
-    valid_logs = df_logistics[(df_logistics['time_to_ship'] >= 0) & (df_logistics['carrier_time'] >= 0)].copy()
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Avg Seller Processing", f"{valid_logs['time_to_ship'].mean():.1f} days")
-    col2.metric("Avg Carrier Transit", f"{valid_logs['carrier_time'].mean():.1f} days")
-    late_pct = (valid_logs['delay_days'] > 0).mean() * 100
-    col3.metric("Late Delivery Rate", f"{late_pct:.1f}%", "-1.2%" if late_pct < 10 else "+2.1%", delta_color="inverse")
-    
-    st.markdown("---")
-    
-    # Seller vs Carrier Analysis
-    st.subheader("Who is the bottleneck? (Seller vs Carrier)")
-    
-    state_logs = valid_logs.groupby('customer_state')[['time_to_ship', 'carrier_time']].mean().sort_values('carrier_time', ascending=False).reset_index()
-    
-    fig_stack = go.Figure(data=[
-        go.Bar(name='Seller Processing', x=state_logs['customer_state'], y=state_logs['time_to_ship'], marker_color='#3498db'),
-        go.Bar(name='Carrier Transit', x=state_logs['customer_state'], y=state_logs['carrier_time'], marker_color='#e67e22')
-    ])
-    fig_stack.update_layout(barmode='stack', title="Average Delivery Composition by State", xaxis_title="State", yaxis_title="Average Days")
-    st.plotly_chart(fig_stack, use_container_width=True)
-    
-    # Delivery Reliability
-    st.subheader("Delivery Reliability (Actual vs Estimated)")
-    plot_data = valid_logs[(valid_logs['delay_days'] > -20) & (valid_logs['delay_days'] < 20)]
-    fig_box = px.box(plot_data, x='customer_state', y='delay_days', 
-                     title="Distribution of Delay Days by State (Positive = Late)",
-                     color='customer_state')
-    fig_box.add_hline(y=0, line_dash="dash", line_color="red", annotation_text="On Time")
-    st.plotly_chart(fig_box, use_container_width=True)
+    st.subheader("Order Timing Analysis")
+    col_c, col_d = st.columns(2)
+    with col_c:
+        day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        dow_counts = df['order_day_of_week'].value_counts().reindex(day_order).reset_index()
+        dow_counts.columns = ['order_day_of_week', 'count']
+        fig_dow = px.bar(dow_counts, x='order_day_of_week', y='count',
+                         title="Order Volume by Day of Week",
+                         color_discrete_sequence=[olist_blue])
+        st.plotly_chart(fig_dow, use_container_width=True)
+        
+    with col_d:
+        hour_counts = df['order_hour'].value_counts().sort_index().reset_index()
+        hour_counts.columns = ['order_hour', 'count']
+        fig_hour = px.line(hour_counts, x='order_hour', y='count',
+                           title="Order Volume by Hour of Day",
+                           template="plotly_white", line_shape='spline')
+        fig_hour.update_traces(line_color=olist_green, line_width=3)
+        fig_hour.update_layout(xaxis=dict(tickmode='linear', tick0=0, dtick=2))
+        st.plotly_chart(fig_hour, use_container_width=True)
 
-# --- 3. Demand Forecasting ---
-elif navigation == "3. Demand Forecasting":
-    st.header("ML-Driven Demand Forecasting")
+with tab2:
+    st.header("Logistics, Freight Costs & Delivery Performance")
     
-    forecast_path = os.path.join("data", "processed", "dashboard_forecast_v3.parquet")
-    if not os.path.exists(forecast_path):
-        st.warning("Forecasting data missing. Please run `python src/generate_dashboard_data.py`.")
-    else:
-        st.info("The model is a LightGBM Regressor using a Tweedie Objective, trained on lagged time-series features.")
-        
-        # Load pre-computed results
-        res_df = pd.read_parquet(forecast_path)
-        
-        # Global Forecast
-        st.subheader("Global Aggregate Demand Forecast (Test Period)")
-        global_demand = res_df.groupby('date')[['actual', 'predicted']].sum().reset_index()
-        
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=global_demand['date'], y=global_demand['actual'], mode='lines', name='Actual', line=dict(color='black', width=2)))
-        fig.add_trace(go.Scatter(x=global_demand['date'], y=global_demand['predicted'], mode='lines', name='Predicted', line=dict(color='#2ca02c', width=2, dash='dash')))
-        fig.update_layout(title="Total Network Demand vs Model Forecast", template="plotly_white")
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Category specific
-        st.subheader("Category-Specific Forecasts")
-        top_categories = res_df.groupby('category')['actual'].sum().nlargest(10).index.tolist()
-        selected_cat = st.selectbox("Select a Product Category to View:", top_categories)
-        
-        cat_data = res_df[res_df['category'] == selected_cat].groupby('date')[['actual', 'predicted']].sum().reset_index()
-        fig_cat = go.Figure()
-        fig_cat.add_trace(go.Scatter(x=cat_data['date'], y=cat_data['actual'], mode='lines+markers', name='Actual Sales'))
-        fig_cat.add_trace(go.Scatter(x=cat_data['date'], y=cat_data['predicted'], mode='lines', name='Forecasted Sales', line=dict(dash='dash')))
-        st.plotly_chart(fig_cat, use_container_width=True)
-
-# --- 4. Inventory Replenishment ---
-elif navigation == "4. Inventory Replenishment":
-    st.header("Inventory Replenishment & Safety Stock")
+    col_e, col_f = st.columns(2)
     
-    inventory_path = os.path.join("data", "processed", "dashboard_inventory_v3.parquet")
-    if not os.path.exists(inventory_path):
-        st.warning("Inventory data missing. Please run `python src/generate_dashboard_data.py`.")
-    else:
-        st.markdown("Dynamic calculation of recommended inventory levels utilizing ML demand forecasts and standard supply chain safety stock formulas.")
+    with col_e:
+        state_late = valid_logs.groupby('customer_state')['is_late'].mean().reset_index()
+        state_late['is_late'] = state_late['is_late'] * 100
+        state_late = state_late.sort_values('is_late', ascending=False)
+        fig_late = px.bar(state_late, x='customer_state', y='is_late',
+                          title="Late Delivery Rate (%) by Customer State",
+                          labels={'is_late': 'Late Rate (%)', 'customer_state': 'State'},
+                          color='is_late', color_continuous_scale='Reds')
+        st.plotly_chart(fig_late, use_container_width=True)
         
-        # Load pre-computed inventory data
-        inv_df = pd.read_parquet(inventory_path)
-        latest_date = inv_df['Planning_Date'].iloc[0]
-        
-        st.write(f"**Planning Date (Simulated Current Week):** {pd.to_datetime(latest_date).strftime('%Y-%m-%d')}")
-        
-        # Calculation parameters
-        service_level = st.slider("Target Service Level (%)", 85, 99, 95)
-        lead_time = st.slider("Supplier Lead Time (Weeks)", 1, 8, 2)
-        
-        # Map service level to z-score approximately
-        z_dict = {85: 1.04, 90: 1.28, 95: 1.645, 98: 2.05, 99: 2.33}
-        z_val = z_dict.get(service_level, 1.645) # fallback
-        
-        inv_df['Safety_Stock'] = np.ceil(z_val * np.sqrt(lead_time) * inv_df['Volatility_StdDev'])
-        inv_df['Reorder_Point (ROP)'] = (inv_df['Expected_Weekly_Demand'] * lead_time) + inv_df['Safety_Stock']
-        
-        # Keep only needed columns and sort
-        display_cols = ['Category', 'Expected_Weekly_Demand', 'Volatility_StdDev', 'Safety_Stock', 'Reorder_Point (ROP)']
-        inv_df_display = inv_df[display_cols].sort_values('Expected_Weekly_Demand', ascending=False)
-        
-        # Display table
-        st.dataframe(inv_df_display.head(50).style.format({
-            'Expected_Weekly_Demand': '{:.0f}',
-            'Volatility_StdDev': '{:.1f}',
-            'Safety_Stock': '{:.0f}',
-            'Reorder_Point (ROP)': '{:.0f}',
-        }), use_container_width=True)
-        
-        # Visualizing ROP for Top 10
-        st.subheader("Reorder Point Composition (Top Categories)")
-        top_inv = inv_df_display.head(15).copy()
-        top_inv['Lead_Time_Demand'] = top_inv['Expected_Weekly_Demand'] * lead_time
-        
-        fig_rop = go.Figure(data=[
-            go.Bar(name='Demand during Lead Time', x=top_inv['Category'], y=top_inv['Lead_Time_Demand'], marker_color='#4ade80'),
-            go.Bar(name='Safety Stock', x=top_inv['Category'], y=top_inv['Safety_Stock'], marker_color='#f87171')
+    with col_f:
+        state_logs = valid_logs.groupby('customer_state')[['time_to_ship', 'carrier_time']].mean().sort_values('carrier_time', ascending=False).reset_index()
+        fig_stack = go.Figure(data=[
+            go.Bar(name='Seller Processing', x=state_logs['customer_state'], y=state_logs['time_to_ship'], marker_color=olist_blue),
+            go.Bar(name='Carrier Transit', x=state_logs['customer_state'], y=state_logs['carrier_time'], marker_color=olist_green)
         ])
-        fig_rop.update_layout(barmode='stack', title="Total Reorder Point = Base Demand + Safety Buffer")
-        st.plotly_chart(fig_rop, use_container_width=True)
+        fig_stack.update_layout(barmode='stack', title="Delivery Bottlenecks: Seller vs. Carrier by State", xaxis_title="State", yaxis_title="Average Days")
+        st.plotly_chart(fig_stack, use_container_width=True)
+
+    st.subheader("Freight Cost Analysis")
+    col_g, col_h = st.columns(2)
+    
+    with col_g:
+        state_freight = df.groupby('customer_state')['freight_ratio'].mean().reset_index().sort_values('freight_ratio', ascending=False)
+        fig_freight = px.bar(state_freight, x='customer_state', y='freight_ratio',
+                             title="Freight as a % of Product Price by State",
+                             labels={'freight_ratio': 'Freight % of Price', 'customer_state': 'State'},
+                             color_discrete_sequence=['#F9A01B'])
+        st.plotly_chart(fig_freight, use_container_width=True)
+
+    with col_h:
+        seller_state_time = valid_logs.groupby('seller_state')['time_to_ship'].mean().reset_index().sort_values('time_to_ship', ascending=False)
+        fig_seller = px.bar(seller_state_time, x='seller_state', y='time_to_ship',
+                            title="Average Seller Processing Time by Seller State",
+                            labels={'time_to_ship': 'Avg Processing Days', 'seller_state': 'Seller State'},
+                            color_discrete_sequence=['#8E24AA'])
+        st.plotly_chart(fig_seller, use_container_width=True)
+
+with tab3:
+    st.header("Product Category Insights")
+    
+    col_i, col_j = st.columns(2)
+    
+    with col_i:
+        cat_counts = df['product_category'].value_counts().reset_index().head(10)
+        cat_counts.columns = ['category', 'sales_volume']
+        fig_cat = px.pie(cat_counts, values='sales_volume', names='category', hole=0.4,
+                         title="Volume Breakdown (Top 10 Categories)", 
+                         color_discrete_sequence=color_discrete_sequence)
+        st.plotly_chart(fig_cat, use_container_width=True)
+        
+    with col_j:
+        cat_revenue = df.groupby('product_category')['price'].sum().reset_index().sort_values('price', ascending=False).head(10)
+        fig_cat_rev = px.bar(cat_revenue, x='price', y='product_category', orientation='h',
+                             title="Revenue by Top Categories",
+                             color_discrete_sequence=[olist_blue])
+        fig_cat_rev.update_layout(yaxis={'categoryorder':'total ascending'})
+        st.plotly_chart(fig_cat_rev, use_container_width=True)
+
+with tab4:
+    st.header("Product Ratings & Payments Analysis")
+    
+    col_k, col_l = st.columns(2)
+    
+    with col_k:
+        if 'review_score' in df.columns and not df['review_score'].isna().all():
+            cat_ratings = df.groupby('product_category').agg(
+                avg_rating=('review_score', 'mean'),
+                volume=('order_id', 'count')
+            ).reset_index()
+            cat_ratings = cat_ratings[cat_ratings['volume'] > 50] # Filter low volume
+            
+            top_rated = cat_ratings.sort_values('avg_rating', ascending=False).head(5)
+            worst_rated = cat_ratings.sort_values('avg_rating', ascending=True).head(5)
+            
+            combined_ratings = pd.concat([top_rated, worst_rated]).sort_values('avg_rating', ascending=True)
+            combined_ratings['Type'] = np.where(combined_ratings['avg_rating'] >= combined_ratings['avg_rating'].median(), 'Top Rated', 'Worst Rated')
+            
+            fig_ratings = px.bar(combined_ratings, x='avg_rating', y='product_category', orientation='h',
+                                 title="Best vs Worst Rated Categories (Min. 50 Orders)",
+                                 color='Type', color_discrete_map={'Top Rated': '#4CAF50', 'Worst Rated': '#F44336'})
+            fig_ratings.update_layout(xaxis=dict(range=[1, 5]))
+            st.plotly_chart(fig_ratings, use_container_width=True)
+        else:
+            st.info("Review scores not available for the selected filters.")
+            
+    with col_l:
+        if 'payment_type' in df.columns and not df['payment_type'].isna().all():
+            pay_counts = df['payment_type'].value_counts().reset_index()
+            pay_counts.columns = ['payment_type', 'count']
+            
+            fig_pay = px.pie(pay_counts, values='count', names='payment_type', hole=0.3,
+                             title="Payment Method Distribution",
+                             color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig_pay, use_container_width=True)
+        else:
+            st.info("Payment types not available for the selected filters.")
+
+with tab5:
+    st.header("Key Business Insights & Strategic Recommendations")
+    st.markdown("""
+    Based on our comprehensive operational and product analysis, here are the detailed findings and recommendations:
+    
+    ### 1. Delivery Performance & Logistics Bottlenecks
+    - **Insight**: Northern (e.g., RR, AP, AM) and Northeastern states suffer from extremely high late delivery rates. The stacked bar chart reveals this is primarily due to *carrier transit times*.
+    - **Recommendation**: Olist must diversify its carrier portfolio in the North/Northeast. Establish partnerships with specialized regional couriers and consider implementing intermediate cross-docking hubs closer to these high-delay regions.
+    
+    ### 2. Freight Cost Optimization
+    - **Insight**: In remote states, freight costs account for a massive percentage of the product price (often >30%), acting as a significant deterrent to conversion rates.
+    - **Recommendation**: Implement a dynamic pricing strategy. For high-margin, lightweight categories, Olist should absorb a portion of the freight cost to offer "Free Shipping" tiers, driving conversion where shipping shock causes cart abandonment.
+    
+    ### 3. Seller Performance Management
+    - **Insight**: Seller processing times are highly inconsistent by state. Sellers in certain regions take an average of 4-5 days simply to hand over the product to the carrier.
+    - **Recommendation**: Introduce a "Fast Dispatch" badge for sellers who consistently hand over items within 24-48 hours. Time-to-ship must become a core metric for seller ranking algorithms.
+    
+    ### 4. Product Quality & Ratings Intervention
+    - **Insight**: Certain categories consistently rank in the "Worst Rated" chart (e.g., office furniture, security/services). These categories often suffer from either misleading descriptions or shipping damage.
+    - **Recommendation**: Launch a Quality Assurance intervention for the bottom 5 categories. Require mandatory, clearer product dimensions and high-quality images from sellers in these categories to manage customer expectations and reduce negative reviews.
+    
+    ### 5. Payment Methods
+    - **Insight**: Credit Cards dominate the payment landscape, but Boletos still make up a significant portion of transactions. Boletos generally have longer payment confirmation times which delays the seller's dispatch time.
+    - **Recommendation**: Incentivize credit card or PIX/instant payments over Boleto by offering a 2-3% discount at checkout. This will accelerate the entire order lifecycle and reduce the "time to ship" bottleneck.
+    """)

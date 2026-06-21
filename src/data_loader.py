@@ -11,9 +11,6 @@ def load_dataset(filename):
     return pd.read_csv(path)
 
 def load_and_merge_data():
-    """
-    Loads raw Olist datasets and merges them into a single master dataframe.
-    """
     # 1. Load Raw Data
     orders = load_dataset("olist_orders_dataset.csv")
     items = load_dataset("olist_order_items_dataset.csv")
@@ -22,31 +19,25 @@ def load_and_merge_data():
     customers = load_dataset("olist_customers_dataset.csv")
     sellers = load_dataset("olist_sellers_dataset.csv")
     category_translation = load_dataset("product_category_name_translation.csv")
+    reviews = load_dataset("olist_order_reviews_dataset.csv")
     
-    # Optional: Geolocation (Heavy file, often not needed for pure demand forecasting, skipping for speed unless requested)
-    # geo = load_dataset("olist_geolocation_dataset.csv") 
-
     print("Data loaded. Starting merge process...")
-
-    # 2. Merge Strategy
-    # Start with Items (Granular level: Product per Order)
-    # We use INNER JOIN on orders because we only care about items that actually have an order record
+    
+    # Aggregate reviews per order
+    avg_reviews = reviews.groupby('order_id')['review_score'].mean().reset_index()
+    
+    # Get primary payment method per order
+    primary_payment = payments.sort_values('payment_value', ascending=False).drop_duplicates('order_id')[['order_id', 'payment_type']]
+    
     df = pd.merge(items, orders, on="order_id", how="inner")
     
-    # Add Product Details
     df = pd.merge(df, products, on="product_id", how="left")
-    
-    # Add Category Translations (Critical for readable features)
     df = pd.merge(df, category_translation, on="product_category_name", how="left")
-    
-    # Add Customer Location (for regional demand analysis)
     df = pd.merge(df, customers, on="customer_id", how="left")
-    
-    # Add Seller Info
     df = pd.merge(df, sellers, on="seller_id", how="left")
+    df = pd.merge(df, avg_reviews, on="order_id", how="left")
+    df = pd.merge(df, primary_payment, on="order_id", how="left")
     
-    # 3. Handle Dates
-    # Convert timestamp columns to datetime objects immediately
     date_cols = ['order_purchase_timestamp', 'order_approved_at', 
                  'order_delivered_carrier_date', 'order_delivered_customer_date', 
                  'order_estimated_delivery_date', 'shipping_limit_date']
@@ -54,11 +45,8 @@ def load_and_merge_data():
     for col in date_cols:
         df[col] = pd.to_datetime(df[col], errors='coerce')
 
-    # 4. Clean Category Name
-    # Use English name if available, else Portuguese, else 'unknown'
     df['product_category'] = df['product_category_name_english'].fillna(df['product_category_name']).fillna('unknown')
     
-    # Drop unnecessary columns to save memory
     drop_cols = ['product_category_name', 'product_category_name_english', 
                  'product_name_lenght', 'product_description_lenght', 'product_photos_qty']
     df.drop(columns=drop_cols, inplace=True, errors='ignore')
@@ -67,13 +55,11 @@ def load_and_merge_data():
     return df
 
 def save_processed(df, filename="master_table.parquet"):
-    """Saves the dataframe to the processed directory as Parquet."""
     path = os.path.join(PROCESSED_DATA_DIR, filename)
     print(f"Saving processed data to {path}...")
     df.to_parquet(path, index=False)
     print("Save complete.")
 
 if __name__ == "__main__":
-    # execute the pipeline
     df_master = load_and_merge_data()
     save_processed(df_master)

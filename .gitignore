@@ -1,2 +1,4 @@
-Data
 .venv
+Data/raw/
+Data/processed/.*
+!Data/processed/master_table.parquet
