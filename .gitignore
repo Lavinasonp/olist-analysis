@@ -2,3 +2,16 @@
 Data/raw/
 Data/processed/.*
 !Data/processed/master_table.parquet
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS
+.DS_Store
+._*
+
+# Project specific
+temp_error.txt
+reports/

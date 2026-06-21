@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "<string>", line 6, in <module>
-    exec(code)
-    ~~~~^^^^^^
-  File "<string>", line 98, in <module>
-NameError: name 'df_master' is not defined
